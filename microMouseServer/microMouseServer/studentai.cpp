@@ -17,6 +17,15 @@ enum MouseMovement {MOVE_FORWARD, TURN_LEFT, TURN_RIGHT, MOVE_BACKWARD};
 //Forward declaration of Edge so Node can use it
 class Edge;
 
+//Mazemap is an array representation of the maze, with the added bonus that it'll return int max if you try to find how many times an invalid location has been accessed
+class MazeMap
+{
+public:
+    MazeMap();
+    int & operator()(int x, int y);
+    int map[MAZE_WIDTH][MAZE_HEIGHT];
+};
+
 //Node and edge are classes used to represent the maze as a graph.
 //Each node is a "fork" in the maze, and the edge stores information about the connection of two nodes.
 class Node
@@ -83,12 +92,47 @@ void microMouseServer::studentAI()
 
     if(state == FINDING_FINISH)
     {
-        static int mazeMap[MAZE_WIDTH][MAZE_HEIGHT] = {0};
+        static MazeMap map = MazeMap();
         static int counter = 0;
-        mazeMap[x][y]++;
+        map(x, y)++;
         MouseMovement nextMove = MOVE_BACKWARD;
 
-        //descision making on when to go left, right, and forward (TODO)
+        //Get times gone left, right, and forward
+        int timesGoneLeft = INT_MAX;
+        if(!isWallLeft())
+            switch(direction)
+            {
+            case 0: timesGoneLeft = map(x - 1, y); break;
+            case 1: timesGoneLeft = map(x, y + 1); break;
+            case 2: timesGoneLeft = map(x + 1, y); break;
+            case 3: timesGoneLeft = map(x, y - 1); break;
+            }
+        int timesGoneForward = INT_MAX;
+        if(!isWallForward())
+            switch(direction)
+            {
+            case 0: timesGoneForward = map(x, y + 1); break;
+            case 1: timesGoneForward = map(x + 1, y); break;
+            case 2: timesGoneForward = map(x, y - 1); break;
+            case 3: timesGoneForward = map(x - 1, y); break;
+            }
+        int timesGoneRight = INT_MAX;
+        if(!isWallRight())
+            switch(direction)
+            {
+            case 0: timesGoneRight = map(x + 1, y); break;
+            case 1: timesGoneRight = map(x, y - 1); break;
+            case 2: timesGoneRight = map(x - 1, y); break;
+            case 3: timesGoneRight = map(x, y + 1); break;
+            }
+
+        //Figure out which way to go.
+        if(timesGoneLeft <= timesGoneForward && timesGoneLeft <= timesGoneRight && timesGoneLeft != INT_MAX)
+            nextMove = TURN_LEFT;
+        else if(timesGoneForward <= timesGoneRight && timesGoneForward != INT_MAX)
+            nextMove = MOVE_FORWARD;
+        else if(timesGoneRight != INT_MAX)
+            nextMove = TURN_RIGHT;
 
         pastMoves.push_back(nextMove);
         if(nextMove == TURN_LEFT)
@@ -130,6 +174,7 @@ void microMouseServer::studentAI()
     {
         if(pastMoves.size() == 1)
         {
+            printUI("Finished backtracking! Exploring...");
             state = EXPLORING;
         }
         if(pastMoves.back() == TURN_LEFT)
@@ -143,6 +188,8 @@ void microMouseServer::studentAI()
         else if(pastMoves.back() == MOVE_BACKWARD)
         {
             MoveForward(this);
+            TurnRight(this);
+            TurnRight(this);
         }
         else
         {
@@ -154,6 +201,24 @@ void microMouseServer::studentAI()
         }
         pastMoves.pop_back();
     }
+}
+
+//MazeMap class definitions
+MazeMap::MazeMap()
+{
+    for(int x = 0; x < MAZE_WIDTH; x++)
+        for(int y = 0; y < MAZE_HEIGHT; y++)
+            map[x][y] = 0;
+}
+
+int & MazeMap::operator()(int x, int y)
+{
+    if(x < 0 || x > MAZE_WIDTH - 1 || y < 0 || y > MAZE_HEIGHT - 1) //if accessing out of bounds, return a reference to a junk integer
+    {
+        int junk = INT_MAX;
+        return junk;
+    }
+    return map[x][y];
 }
 
 //Node and Edge class definitions.
