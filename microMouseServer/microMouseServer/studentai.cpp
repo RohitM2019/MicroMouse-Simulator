@@ -3,7 +3,7 @@ SHORTEST PATH PLAN
 1. Find the destination.
 2. Explore the maze, making a graph representation of it.
 3. Dijkstra algorithm to find the shortest path
-4. Print out the details of the shortest math.
+4. Print out the details of the shortest path.
 */
 
 #include "micromouseserver.h"
@@ -137,11 +137,15 @@ void microMouseServer::studentAI()
         pastMoves.push_back(nextMove);
         if(nextMove == TURN_LEFT)
         {
+            if(counter < 0)
+                counter = 0;
             counter++;
             TurnLeft(this);
         }
         else if(nextMove == TURN_RIGHT)
         {
+            if(counter > 0)
+                counter = 0;
             counter--;
             TurnRight(this);
         }
