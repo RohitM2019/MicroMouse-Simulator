@@ -3,7 +3,6 @@ SHORTEST PATH PLAN
 1. Find the destination.
 2. Explore the maze, making a graph representation of it.
 3. Dijkstra algorithm to find the shortest path
-4. Print out the details of the shortest path.
 */
 
 #include "micromouseserver.h"
@@ -225,6 +224,10 @@ void microMouseServer::studentAI()
     {
         static bool isBacktracking = false;
         static Node * lastVisitedNode = &nodes.at(0);
+        static int directionFromLastNode = 0;
+        static int movementsFromLastNode = 0;
+        static int distanceFromLastNode = 0;
+
         if(isBacktracking)
         {
 
@@ -245,6 +248,8 @@ void microMouseServer::studentAI()
                 TurnRight(this);
                 MoveForward(this);
                 pastMoves.push_back(MOVE_BACKWARD);
+                movementsFromLastNode += 3;
+                distanceFromLastNode += 1;
             }
             else if (pathCount == 1)
             {
@@ -255,11 +260,15 @@ void microMouseServer::studentAI()
                     MoveForward(this);
                     pastMoves.push_back(TURN_LEFT);
                     pastMoves.push_back(MOVE_FORWARD);
+                    movementsFromLastNode += 2;
+                    distanceFromLastNode += 1;
                 }
                 else if(!isWallForward())
                 {
                     MoveForward(this);
                     pastMoves.push_back(MOVE_FORWARD);
+                    movementsFromLastNode += 1;
+                    distanceFromLastNode += 1;
                 }
                 else
                 {
@@ -267,6 +276,8 @@ void microMouseServer::studentAI()
                     MoveForward(this);
                     pastMoves.push_back(TURN_RIGHT);
                     pastMoves.push_back(MOVE_FORWARD);
+                    movementsFromLastNode += 2;
+                    distanceFromLastNode += 1;
                 }
             }
             else //Fork handler
@@ -278,13 +289,22 @@ void microMouseServer::studentAI()
                 if(nodeAlreadyVisited == NULL) //create a new node
                 {
                     nodes.push_back(Node(x, y));
-
+                    Edge(lastVisitedNode, directionFromLastNode, &nodes.back(), direction, distanceFromLastNode); //link the two nodes together.
+                    lastVisitedNode = &nodes.back();
+                    directionFromLastNode = direction;
+                    movementsFromLastNode = 0;
+                    distanceFromLastNode = 0;
                 }
                 else //handler for reaching a node I already know about
                 {
-                    if(nodeAlreadyVisited->x != lastVisitedNode->x && nodeAlreadyVisited->y != lastVisitedNode->y) //if we just backtracked to the same node
+                    if(nodeAlreadyVisited->x == lastVisitedNode->x && nodeAlreadyVisited->y == lastVisitedNode->y) //if we just backtracked to the same node
                     {
-
+                        //this is because I'm either backtracking from a dead end or some kind of loop.
+                    }
+                    else
+                    {
+                        Edge(lastVisitedNode, directionFromLastNode, nodeAlreadyVisited, direction, distanceFromLastNode); //link the two nodes together
+                        isBacktracking = true;
                     }
                 }
             }
