@@ -64,19 +64,10 @@ void microMouseServer::studentAI()
     static int y = 0; //Location var
     static int direction = 0; //N = 0, E = 1, S = 2, W = 3
     static std::vector<MouseMovement> pastMoves; //Log of past movements (so I can go back to the start)
-    static bool firstRun = true;
 
     //Graph
     static std::vector<Node*> nodes;
     static Node destination;
-
-    //First run stuff. Add 0,0 to the graph and print that it's destination searching
-    if(firstRun)
-    {
-        printUI("Searching for finish...");
-        nodes.push_back(new Node(0, 0));
-        firstRun = false;
-    }
 
     static std::function<void(microMouseServer * server)> TurnLeft = [](microMouseServer * server)
     {
@@ -236,14 +227,27 @@ void microMouseServer::studentAI()
     }
     else if(state == EXPLORING)
     {
+        //If first run, initialize starting data for first node, path trace, and node list
+        //If 0,0 fully explored, exploration finished
+        //Count paths
+            //<2 paths: default maze behavior
+            //Else:
+                //If I've never been here before, make a new node and link it to the previous node
+                //If this is the node I most recently encountered...
+                    //Mark the direction I just came from as explored (it may not be if I'm heading from a dead end
+                    //Find how many directions I haven't explored
+                        //0: Go back to the previous node in the path
+                        //Else: Explore an unexplored direction
+                //If this is another node, link the two nodes together and turn around (go back)
         static bool firstExplorationRun = true;
-        static bool isBacktracking = false;
         static std::vector<Node*> pathTrace;
         static int directionFromLastNode = 0;
         static int distanceFromLastNode = 0;
+        static bool justDiscoveredANode = true;
 
         if(firstExplorationRun)
         {
+            nodes.push_back(new Node(0,0));
             pathTrace.push_back(nodes.front());
             //It wouldn't make sense for the mouse to be able to go west or south from the starting corner
             nodes.front()->exploredWest = true;
@@ -255,166 +259,136 @@ void microMouseServer::studentAI()
                 directionFromLastNode = 0;
             else if(!isWallRight())
                 directionFromLastNode = 1;
-            else //Edge case if the mouse is completely boxed in for some stupid reason
-                isBacktracking = true;
             firstExplorationRun = false;
+            destination.exploredNorth = true;
+            destination.exploredEast = true;
+            destination.exploredSouth = true;
+            destination.exploredWest = true;
+            nodes.push_back(&destination);
         }
-        if(x == destination.x && y == destination.x) //If at destination, create a new, special node to mark that
+
+        if(nodes.front()->exploredNorth && nodes.front()->exploredEast)
+            foundFinish();
+
+        int paths = 3; //Calculate how many paths possible
+        if(isWallForward())
+            paths--;
+        if(isWallLeft())
+            paths--;
+        if(isWallRight())
+            paths--;
+
+        if(paths < 2 && !(x == 0 && y == 0)) //Navigate by normal rules
         {
-            Edge(pathTrace.back(), directionFromLastNode, &destination, (direction + 2) % 4, distanceFromLastNode);
-            isBacktracking = true;
-        }
-        if(isBacktracking)
-        {
-            if(pathTrace.back()->x == x && pathTrace.back()->y == y && (pastMoves.empty() || pastMoves.back() == MOVE_FORWARD || pastMoves.back() == MOVE_BACKWARD))
-            {
-                isBacktracking = false;
-                if(x == 0 && y == 0 && pathTrace.back()->exploredNorth && pathTrace.back()->exploredEast) //If all nodes have been explored, call foundFinish
-                {
-                    state = COMPUTING_SHORTEST_PATH;
-                    printUI("Exploration phase complete. Start run again to compute and run shortest path");
-                    foundFinish();
-                    return;
-                }
-            }
-            if(pastMoves.back() == TURN_LEFT)
-            {
-                TurnRight(this);
-            }
-            else if(pastMoves.back() == TURN_RIGHT)
+            if(!isWallLeft())
             {
                 TurnLeft(this);
+                MoveForward(this);
+                distanceFromLastNode++;
             }
-            else if(pastMoves.back() == MOVE_BACKWARD)
+            else if(!isWallForward())
             {
                 MoveForward(this);
+                distanceFromLastNode++;
+            }
+            else if(!isWallRight())
+            {
                 TurnRight(this);
-                TurnRight(this);
+                MoveForward(this);
+                distanceFromLastNode++;
             }
             else
             {
                 TurnRight(this);
                 TurnRight(this);
                 MoveForward(this);
-                TurnRight(this);
-                TurnRight(this);
+                distanceFromLastNode++;
             }
-            pastMoves.pop_back();
         }
-        if(!isBacktracking) //That way it can seamlessly transition between backtracking and not backtracking in a single run of studentAI()
+        else
         {
-            int paths = 3; //Calculate how many paths possible
-            if(isWallForward())
-                paths--;
-            if(isWallLeft())
-                paths--;
-            if(isWallRight())
-                paths--;
-
-            if(paths == 0) //Dead end! Turn around
+            Node * currentNode = NULL;
+            for(Node * node: nodes)
             {
+                if(node->x == x && node->y == y)
+                    currentNode = node;
+            }
+            if(currentNode == NULL)
+            {
+                Node * newNode = new Node(x, y); //create a new node
+                new Edge(pathTrace.back(), directionFromLastNode, newNode, (direction + 2) % 2, distanceFromLastNode); //Link it with the last explored node
+                switch(direction) //Figure out which ways the mouse can explore from this node
+                {
+                case 0: newNode->exploredWest = isWallLeft(); newNode->exploredNorth = isWallForward(); newNode->exploredEast = isWallRight(); break;
+                case 1: newNode->exploredNorth = isWallLeft(); newNode->exploredEast = isWallForward(); newNode->exploredSouth = isWallRight(); break;
+                case 2: newNode->exploredEast = isWallLeft(); newNode->exploredSouth = isWallForward(); newNode->exploredEast = isWallRight(); break;
+                case 3: newNode->exploredSouth = isWallLeft(); newNode->exploredWest = isWallForward(); newNode->exploredNorth = isWallRight(); break;
+                }
+                pathTrace.push_back(newNode); //Append the node to the pathTrace and node vectors
+                nodes.push_back(newNode);
+                justDiscoveredANode = true;
+            }
+            else if(currentNode == pathTrace.back())
+            {
+                if(!justDiscoveredANode)
+                    switch (directionFromLastNode)
+                    {
+                    case 0: currentNode->exploredNorth = true; break;
+                    case 1: currentNode->exploredEast = true; break;
+                    case 2: currentNode->exploredSouth = true; break;
+                    case 3: currentNode->exploredWest = true; break;
+                    }
+                justDiscoveredANode = false;
+                switch(direction) //Figure out which ways the mouse can explore from this node
+                {
+                case 0: currentNode->exploredSouth = true; break;
+                case 1: currentNode->exploredWest = true; break;
+                case 2: currentNode->exploredNorth = true; break;
+                case 3: currentNode->exploredEast = true; break;
+                }
+                if(!currentNode->exploredNorth)
+                {
+                    directionFromLastNode = 0;
+                }
+                else if(!currentNode->exploredEast)
+                {
+                    directionFromLastNode = 1;
+                }
+                else if(!currentNode->exploredSouth)
+                {
+                    directionFromLastNode = 2;
+                }
+                else if(!currentNode->exploredWest)
+                {
+                    directionFromLastNode = 3;
+                }
+                else //Already explored all the directions from this node? Turn to where the previous nodeis and begin backtracking
+                {
+                    pathTrace.pop_back();
+                    for(Edge * edge: pathTrace.back()->edges)
+                    {
+                        if(edge->start == currentNode)
+                        {
+                            directionFromLastNode = edge->startDir;
+                            break;
+                        }
+                        if(edge->end == currentNode)
+                        {
+                            directionFromLastNode = edge->endDir;
+                            break;
+                        }
+                    }
+                }
+                TurnDir(this, directionFromLastNode);
+                MoveForward(this);
+                distanceFromLastNode = 1;
+            }
+            else //Found another node? Link the two together and turn back
+            {
+                new Edge(currentNode, (direction + 2) % 4, pathTrace.back(), directionFromLastNode, distanceFromLastNode);
                 TurnRight(this);
                 TurnRight(this);
                 MoveForward(this);
-                pastMoves.push_back(TURN_RIGHT);
-                pastMoves.push_back(TURN_RIGHT);
-                pastMoves.push_back(MOVE_FORWARD);
-            }
-            else if(paths == 1) //Navigate by normal rules
-            {
-                if(!isWallLeft())
-                {
-                    TurnLeft(this);
-                    MoveForward(this);
-                    pastMoves.push_back(TURN_LEFT);
-                    pastMoves.push_back(MOVE_FORWARD);
-                    distanceFromLastNode += 1;
-                }
-                else if(!isWallForward())
-                {
-                    MoveForward(this);
-                    pastMoves.push_back(MOVE_FORWARD);
-                    distanceFromLastNode += 1;
-                }
-                else
-                {
-                    TurnRight(this);
-                    MoveForward(this);
-                    pastMoves.push_back(TURN_RIGHT);
-                    pastMoves.push_back(MOVE_FORWARD);
-                    distanceFromLastNode += 1;
-                }
-            }
-            else //Node detection handler (multiple possible paths)
-            {
-                Node * alreadyFound = NULL;
-                for(Node * node: nodes) //Check if node is already logged
-                    if(node->x == x && node->y == y)
-                    {
-                        alreadyFound = node;
-                        break;
-                    }
-                if(alreadyFound == NULL) //If this is a new node
-                {
-                    Node * newNode = new Node(x, y); //create a new node
-                    Edge(pathTrace.back(), directionFromLastNode, newNode, (direction + 2) % 2, directionFromLastNode); //Link it with the last explored node
-                    switch(direction) //Figure out which ways the mouse can explore from this node
-                    {
-                    case 0: newNode->exploredWest = isWallLeft(); newNode->exploredNorth = isWallForward(); newNode->exploredEast = isWallRight(); break;
-                    case 1: newNode->exploredNorth = isWallLeft(); newNode->exploredEast = isWallForward(); newNode->exploredSouth = isWallRight(); break;
-                    case 2: newNode->exploredEast = isWallLeft(); newNode->exploredSouth = isWallForward(); newNode->exploredEast = isWallRight(); break;
-                    case 3: newNode->exploredSouth = isWallLeft(); newNode->exploredWest = isWallForward(); newNode->exploredNorth = isWallRight(); break;
-                    }
-                    pathTrace.push_back(newNode); //Append the node to the pathTrace and node vectors
-                    nodes.push_back(newNode);
-                    //Next run of studentAI, the mouse will treat this as a node it "just found", so it'll find a way to explore and explore that way
-                }
-                else if(x == pathTrace.back()->x && y == pathTrace.back()->y) //if this is a node we just found (we're backtracking or coming from a dead end)
-                {
-                    distanceFromLastNode = 1;
-                    if(!alreadyFound->exploredNorth)
-                    {
-                        alreadyFound->exploredNorth = true;
-                        TurnDir(this, 0);
-                        directionFromLastNode = 0;
-                        MoveForward(this);
-                        pastMoves.push_back(MOVE_FORWARD);
-                    }
-                    else if(!alreadyFound->exploredEast)
-                    {
-                        alreadyFound->exploredEast = true;
-                        TurnDir(this, 1);
-                        directionFromLastNode = 1;
-                        MoveForward(this);
-                        pastMoves.push_back(MOVE_FORWARD);
-                    }
-                    else if(!alreadyFound->exploredSouth)
-                    {
-                        alreadyFound->exploredSouth = true;
-                        TurnDir(this, 2);
-                        directionFromLastNode = 2;
-                        MoveForward(this);
-                        pastMoves.push_back(MOVE_FORWARD);
-                    }
-                    else if(!alreadyFound->exploredWest)
-                    {
-                        alreadyFound->exploredWest = true;
-                        TurnDir(this, 3);
-                        directionFromLastNode = 3;
-                        MoveForward(this);
-                        pastMoves.push_back(MOVE_FORWARD);
-                    }
-                    else //this node is fully explored! Backtrack to the previous node!
-                    {
-                        pathTrace.pop_back();
-                        isBacktracking = true;
-                    }
-                }
-                else //if this is a node we haven't just found, link the two nodes together and backtrack
-                {
-                    Edge(alreadyFound, (direction + 2) % 4, pathTrace.back(), directionFromLastNode, distanceFromLastNode);
-                    isBacktracking = true;
-                }
             }
         }
     }
