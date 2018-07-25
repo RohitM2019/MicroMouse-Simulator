@@ -59,7 +59,7 @@ public:
 void microMouseServer::studentAI()
 {
     //Universal variables
-    static MouseState state = EXPLORING;
+    static MouseState state = FINDING_FINISH;
     static int x = 0; //Location var
     static int y = 0; //Location var
     static int direction = 0; //N = 0, E = 1, S = 2, W = 3
@@ -241,7 +241,7 @@ void microMouseServer::studentAI()
                 //If this is another node, link the two nodes together and turn around (go back)
         static bool firstExplorationRun = true;
         static std::vector<Node*> pathTrace;
-        static int directionFromLastNode = 0;
+        static int directionFromLastNode = -1;
         static int distanceFromLastNode = 0;
         static bool justDiscoveredANode = true;
 
@@ -259,6 +259,8 @@ void microMouseServer::studentAI()
                 directionFromLastNode = 0;
             else if(!isWallRight())
                 directionFromLastNode = 1;
+            if(directionFromLastNode == -1)
+                foundFinish();
             firstExplorationRun = false;
             destination.exploredNorth = true;
             destination.exploredEast = true;
@@ -266,9 +268,6 @@ void microMouseServer::studentAI()
             destination.exploredWest = true;
             nodes.push_back(&destination);
         }
-
-        if(nodes.front()->exploredNorth && nodes.front()->exploredEast)
-            foundFinish();
 
         int paths = 3; //Calculate how many paths possible
         if(isWallForward())
@@ -365,16 +364,21 @@ void microMouseServer::studentAI()
                 else //Already explored all the directions from this node? Turn to where the previous nodeis and begin backtracking
                 {
                     pathTrace.pop_back();
+                    if(pathTrace.empty())
+                    {
+                        foundFinish();
+                        return;
+                    }
                     for(Edge * edge: pathTrace.back()->edges)
                     {
                         if(edge->start == currentNode)
                         {
-                            directionFromLastNode = edge->startDir;
+                            directionFromLastNode = edge->startDir + 2 % 4;
                             break;
                         }
                         if(edge->end == currentNode)
                         {
-                            directionFromLastNode = edge->endDir;
+                            directionFromLastNode = edge->endDir + 2 % 4;
                             break;
                         }
                     }
