@@ -113,6 +113,10 @@ void microMouseServer::studentAI()
 
     if(state == FINDING_FINISH)
     {
+        destination.x = 7;
+        destination.y = 11;
+        state = EXPLORING;
+        /*
         static MazeMap map = MazeMap();
         static int counter = 0;
         map(x, y)++;
@@ -193,6 +197,7 @@ void microMouseServer::studentAI()
             destination.y = y;
             state = BACKTRACKING;
         }
+        */
     }
     else if(state == BACKTRACKING) //Pretty simple. Undo whatever the most recent action is and then pop that action. (unoptimal!)
     {
@@ -243,7 +248,7 @@ void microMouseServer::studentAI()
         static std::vector<Node*> pathTrace;
         static int directionFromLastNode = -1;
         static int distanceFromLastNode = 0;
-        static bool justDiscoveredANode = true;
+        static bool dontMarkDirectionFromLastNodeAsExplored = true;
 
         if(firstExplorationRun)
         {
@@ -259,8 +264,11 @@ void microMouseServer::studentAI()
                 directionFromLastNode = 0;
             else if(!isWallRight())
                 directionFromLastNode = 1;
-            if(directionFromLastNode == -1)
+            else
+            {
                 foundFinish();
+                return;
+            }
             firstExplorationRun = false;
             destination.exploredNorth = true;
             destination.exploredEast = true;
@@ -314,22 +322,23 @@ void microMouseServer::studentAI()
             }
             if(currentNode == NULL)
             {
-                Node * newNode = new Node(x, y); //create a new node
-                new Edge(pathTrace.back(), directionFromLastNode, newNode, (direction + 2) % 2, distanceFromLastNode); //Link it with the last explored node
+                currentNode = new Node(x, y); //create a new node
+                new Edge(pathTrace.back(), directionFromLastNode, currentNode, (direction + 2) % 4, distanceFromLastNode); //Link it with the last explored node
+                distanceFromLastNode = 0;
                 switch(direction) //Figure out which ways the mouse can explore from this node
                 {
-                case 0: newNode->exploredWest = isWallLeft(); newNode->exploredNorth = isWallForward(); newNode->exploredEast = isWallRight(); break;
-                case 1: newNode->exploredNorth = isWallLeft(); newNode->exploredEast = isWallForward(); newNode->exploredSouth = isWallRight(); break;
-                case 2: newNode->exploredEast = isWallLeft(); newNode->exploredSouth = isWallForward(); newNode->exploredEast = isWallRight(); break;
-                case 3: newNode->exploredSouth = isWallLeft(); newNode->exploredWest = isWallForward(); newNode->exploredNorth = isWallRight(); break;
+                case 0: currentNode->exploredWest = isWallLeft(); currentNode->exploredNorth = isWallForward(); currentNode->exploredEast = isWallRight(); break;
+                case 1: currentNode->exploredNorth = isWallLeft(); currentNode->exploredEast = isWallForward(); currentNode->exploredSouth = isWallRight(); break;
+                case 2: currentNode->exploredEast = isWallLeft(); currentNode->exploredSouth = isWallForward(); currentNode->exploredWest = isWallRight(); break;
+                case 3: currentNode->exploredSouth = isWallLeft(); currentNode->exploredWest = isWallForward(); currentNode->exploredNorth = isWallRight(); break;
                 }
-                pathTrace.push_back(newNode); //Append the node to the pathTrace and node vectors
-                nodes.push_back(newNode);
-                justDiscoveredANode = true;
+                pathTrace.push_back(currentNode); //Append the node to the pathTrace and node vectors
+                nodes.push_back(currentNode);
+                dontMarkDirectionFromLastNodeAsExplored = true;
             }
             else if(currentNode == pathTrace.back())
             {
-                if(!justDiscoveredANode)
+                if(!dontMarkDirectionFromLastNodeAsExplored)
                     switch (directionFromLastNode)
                     {
                     case 0: currentNode->exploredNorth = true; break;
@@ -337,7 +346,7 @@ void microMouseServer::studentAI()
                     case 2: currentNode->exploredSouth = true; break;
                     case 3: currentNode->exploredWest = true; break;
                     }
-                justDiscoveredANode = false;
+                dontMarkDirectionFromLastNodeAsExplored = false;
                 switch(direction) //Figure out which ways the mouse can explore from this node
                 {
                 case 0: currentNode->exploredSouth = true; break;
@@ -373,15 +382,16 @@ void microMouseServer::studentAI()
                     {
                         if(edge->start == currentNode)
                         {
-                            directionFromLastNode = edge->startDir + 2 % 4;
+                            directionFromLastNode = edge->startDir;
                             break;
                         }
                         if(edge->end == currentNode)
                         {
-                            directionFromLastNode = edge->endDir + 2 % 4;
+                            directionFromLastNode = edge->endDir;
                             break;
                         }
                     }
+                    dontMarkDirectionFromLastNodeAsExplored = true;
                 }
                 TurnDir(this, directionFromLastNode);
                 MoveForward(this);
@@ -390,9 +400,8 @@ void microMouseServer::studentAI()
             else //Found another node? Link the two together and turn back
             {
                 new Edge(currentNode, (direction + 2) % 4, pathTrace.back(), directionFromLastNode, distanceFromLastNode);
-                TurnRight(this);
-                TurnRight(this);
-                MoveForward(this);
+                distanceFromLastNode = 0;
+                pathTrace.push_back(currentNode);
             }
         }
     }
