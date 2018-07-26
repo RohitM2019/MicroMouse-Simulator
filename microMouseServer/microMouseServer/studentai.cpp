@@ -54,7 +54,6 @@ void microMouseServer::studentAI()
     static int x = 0; //Location var
     static int y = 0; //Location var
     static int direction = 0; //N = 0, E = 1, S = 2, W = 3
-    static std::vector<MouseMovement> pastMoves; //Log of past movements (so I can go back to the start)
     static int finishX = -1;
     static int finishY = -1;
 
@@ -92,13 +91,11 @@ void microMouseServer::studentAI()
         if(std::abs(direction - dir < 2))
             while(direction != dir)
             {
-                pastMoves.push_back(TURN_LEFT);
                 TurnLeft(server);
             }
         else
             while(direction != dir)
             {
-                pastMoves.push_back(TURN_RIGHT);
                 TurnRight(server);
             }
     };
@@ -219,11 +216,13 @@ void microMouseServer::studentAI()
                 pathTrace.push_back(currentNode); //Append the node to the pathTrace and node vectors
                 nodes.push_back(currentNode);
                 dontMarkDirectionFromLastNodeAsExplored = true;
+                counter = 0;
             }
             else if(currentNode == pathTrace.back())
             {
                 if(counter == 3 || counter == -3)
                 {
+                    printUI("Found finish!");
                     finishX = x;
                     finishY = y;
                 }
@@ -295,12 +294,14 @@ void microMouseServer::studentAI()
                 TurnDir(this, directionFromLastNode);
                 MoveForward(this);
                 distanceFromLastNode = 1;
+                counter = 0;
             }
             else //Found another node? Link the two together and turn back
             {
                 new Edge(currentNode, (direction + 2) % 4, pathTrace.back(), directionFromLastNode, distanceFromLastNode);
                 distanceFromLastNode = 0;
                 pathTrace.push_back(currentNode);
+                counter = 0;
             }
         }
     }
