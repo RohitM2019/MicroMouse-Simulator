@@ -11,21 +11,12 @@ SHORTEST PATH PLAN
 #include "string"
 
 //Enums! Enums galore!
-enum MouseState {FINDING_FINISH, BACKTRACKING, EXPLORING, COMPUTING_SHORTEST_PATH, END};
-enum MouseMovement {MOVE_FORWARD, TURN_LEFT, TURN_RIGHT, MOVE_BACKWARD};
+enum MouseState {EXPLORING, COMPUTING_SHORTEST_PATH, END};
+enum MouseMovement {MOVE_FORWARD, TURN_LEFT, TURN_RIGHT, TURN_AROUND};
 enum Direction {NORTH, EAST, SOUTH, WEST};
 
 //Forward declaration of Edge so Node can use it
 class Edge;
-
-//Mazemap is an array representation of the maze, with the added bonus that it'll return int max if you try to find how many times an invalid location has been accessed
-class MazeMap
-{
-public:
-    MazeMap();
-    int & operator()(int x, int y);
-    int map[MAZE_WIDTH][MAZE_HEIGHT];
-};
 
 //Node and edge are classes used to represent the maze as a graph.
 //Each node is a "fork" in the maze, and the edge stores information about the connection of two nodes.
@@ -59,15 +50,16 @@ public:
 void microMouseServer::studentAI()
 {
     //Universal variables
-    static MouseState state = FINDING_FINISH;
+    static MouseState state = EXPLORING;
     static int x = 0; //Location var
     static int y = 0; //Location var
     static int direction = 0; //N = 0, E = 1, S = 2, W = 3
     static std::vector<MouseMovement> pastMoves; //Log of past movements (so I can go back to the start)
+    static int finishX = -1;
+    static int finishY = -1;
 
     //Graph
     static std::vector<Node*> nodes;
-    static Node destination;
 
     static std::function<void(microMouseServer * server)> TurnLeft = [](microMouseServer * server)
     {
@@ -111,138 +103,19 @@ void microMouseServer::studentAI()
             }
     };
 
-    if(state == FINDING_FINISH)
-    {
-        static MazeMap map = MazeMap();
-        static int counter = 0;
-        map(x, y)++;
-        MouseMovement nextMove = MOVE_BACKWARD;
-
-        //Get times gone left, right, and forward
-        int timesGoneLeft = INT_MAX;
-        if(!isWallLeft())
-            switch(direction)
-            {
-            case 0: timesGoneLeft = map(x - 1, y); break;
-            case 1: timesGoneLeft = map(x, y + 1); break;
-            case 2: timesGoneLeft = map(x + 1, y); break;
-            case 3: timesGoneLeft = map(x, y - 1); break;
-            }
-        int timesGoneForward = INT_MAX;
-        if(!isWallForward())
-            switch(direction)
-            {
-            case 0: timesGoneForward = map(x, y + 1); break;
-            case 1: timesGoneForward = map(x + 1, y); break;
-            case 2: timesGoneForward = map(x, y - 1); break;
-            case 3: timesGoneForward = map(x - 1, y); break;
-            }
-        int timesGoneRight = INT_MAX;
-        if(!isWallRight())
-            switch(direction)
-            {
-            case 0: timesGoneRight = map(x + 1, y); break;
-            case 1: timesGoneRight = map(x, y - 1); break;
-            case 2: timesGoneRight = map(x - 1, y); break;
-            case 3: timesGoneRight = map(x, y + 1); break;
-            }
-
-        //Figure out which way to go.
-        if(timesGoneLeft <= timesGoneForward && timesGoneLeft <= timesGoneRight && timesGoneLeft != INT_MAX)
-            nextMove = TURN_LEFT;
-        else if(timesGoneForward <= timesGoneRight && timesGoneForward != INT_MAX)
-            nextMove = MOVE_FORWARD;
-        else if(timesGoneRight != INT_MAX)
-            nextMove = TURN_RIGHT;
-
-        pastMoves.push_back(nextMove);
-        if(nextMove == TURN_LEFT)
-        {
-            if(counter < 0)
-                counter = 0;
-            counter++;
-            TurnLeft(this);
-        }
-        else if(nextMove == TURN_RIGHT)
-        {
-            if(counter > 0)
-                counter = 0;
-            counter--;
-            TurnRight(this);
-        }
-        else if(nextMove == MOVE_BACKWARD)
-        {
-            counter = 0; //reset counter (moving backward breaks streak)
-            TurnRight(this);
-            TurnRight(this);
-        }
-        else
-        {
-            pastMoves.pop_back(); //If the next move is moving forward, pop the last logged item because we don't want to log moveForward twice.
-            counter = 0; //reset counter (moving forward breaks streak)
-        }
-
-        if(MoveForward(this)) //move forward and log
-        {
-            pastMoves.push_back(MOVE_FORWARD);
-        }
-
-        if(counter == 3 || counter == -3)
-        {
-            printUI("Found finish! Backtracking...");
-            destination.x = x;
-            destination.y = y;
-            state = BACKTRACKING;
-        }
-    }
-    else if(state == BACKTRACKING) //Pretty simple. Undo whatever the most recent action is and then pop that action. (unoptimal!)
-    {
-        if(x == 0 && y == 0)
-        {
-            printUI("Finished backtracking! Exploring...");
-            TurnDir(this, 0);
-            state = EXPLORING;
-        }
-        if(pastMoves.size() == 1)
-        {
-            printUI("Finished backtracking! Exploring...");
-            state = EXPLORING;
-        }
-        if(pastMoves.back() == TURN_LEFT)
-        {
-            TurnRight(this);
-        }
-        else if(pastMoves.back() == TURN_RIGHT)
-        {
-            TurnLeft(this);
-        }
-        else if(pastMoves.back() == MOVE_BACKWARD)
-        {
-            TurnRight(this);
-            TurnRight(this);
-        }
-        else
-        {
-            TurnRight(this);
-            TurnRight(this);
-            MoveForward(this);
-            TurnRight(this);
-            TurnRight(this);
-        }
-        pastMoves.pop_back();
-    }
-    else if(state == EXPLORING)
+    if(state == EXPLORING)
     {
         //If first run, initialize starting data for first node, path trace, and node list
         //If 0,0 fully explored, exploration finished
         //Count paths
             //<2 paths: default maze behavior
             //Else:
-                //If I've never been here before, make a new node and link it to the previous node
+                //If I've never been here before, make a new node and link it to the previous node.
                 //If this is the node I most recently encountered...
-                    //Mark the direction I just came from as explored (it may not be if I'm heading from a dead end
+                    //Mark the direction I just came from as explored (it may not be if I'm heading from a dead end)
                     //Find how many directions I haven't explored
                         //0: Go back to the previous node in the path
+                            //No more nodes? Search for destination. Done exploring.
                         //Else: Explore an unexplored direction
                 //If this is another node, link the two nodes together and turn around (go back)
         static bool firstExplorationRun = true;
@@ -250,6 +123,7 @@ void microMouseServer::studentAI()
         static int directionFromLastNode = -1;
         static int distanceFromLastNode = 0;
         static bool dontMarkDirectionFromLastNodeAsExplored = true;
+        static int counter = 0;
 
         if(firstExplorationRun)
         {
@@ -267,14 +141,11 @@ void microMouseServer::studentAI()
                 directionFromLastNode = 1;
             else
             {
+                printUI("Maze is completely blocked off!");
+                state = END;
                 foundFinish();
             }
             firstExplorationRun = false;
-            destination.exploredNorth = true;
-            destination.exploredEast = true;
-            destination.exploredSouth = true;
-            destination.exploredWest = true;
-            nodes.push_back(&destination);
             return;
         }
 
@@ -290,23 +161,35 @@ void microMouseServer::studentAI()
         {
             if(!isWallLeft())
             {
+                if(counter < 0)
+                {
+                    counter = 0;
+                }
+                counter++;
                 TurnLeft(this);
                 MoveForward(this);
                 distanceFromLastNode++;
             }
             else if(!isWallForward())
             {
+                counter = 0;
                 MoveForward(this);
                 distanceFromLastNode++;
             }
             else if(!isWallRight())
             {
+                if(counter > 0)
+                {
+                    counter = 0;
+                }
+                counter--;
                 TurnRight(this);
                 MoveForward(this);
                 distanceFromLastNode++;
             }
             else
             {
+                counter = 0;
                 TurnRight(this);
                 TurnRight(this);
                 MoveForward(this);
@@ -339,6 +222,11 @@ void microMouseServer::studentAI()
             }
             else if(currentNode == pathTrace.back())
             {
+                if(counter == 3 || counter == -3)
+                {
+                    finishX = x;
+                    finishY = y;
+                }
                 if(!dontMarkDirectionFromLastNodeAsExplored)
                     switch (directionFromLastNode)
                     {
@@ -371,11 +259,21 @@ void microMouseServer::studentAI()
                 {
                     directionFromLastNode = 3;
                 }
-                else //Already explored all the directions from this node? Turn to where the previous nodeis and begin backtracking
+                else //Already explored all the directions from this node? Turn to where the previous node is and begin backtracking
                 {
                     pathTrace.pop_back();
                     if(pathTrace.empty())
                     {
+                        if(finishX == -1)
+                        {
+                            printUI("Exploration complete. No destination found!");
+                            state = END;
+                        }
+                        else
+                        {
+                            printUI("Exploration complete. Press \"start run\" again to run shortest path.");
+                            state = COMPUTING_SHORTEST_PATH;
+                        }
                         foundFinish();
                         return;
                     }
@@ -414,24 +312,6 @@ void microMouseServer::studentAI()
     {
         foundFinish();
     }
-}
-
-//MazeMap class definitions
-MazeMap::MazeMap()
-{
-    for(int x = 0; x < MAZE_WIDTH; x++)
-        for(int y = 0; y < MAZE_HEIGHT; y++)
-            map[x][y] = 0;
-}
-
-int & MazeMap::operator()(int x, int y)
-{
-    if(x < 0 || x > MAZE_WIDTH - 1 || y < 0 || y > MAZE_HEIGHT - 1) //if accessing out of bounds, return a reference to a junk integer
-    {
-        int junk = INT_MAX; //memory leak risk, but it'll go out of scope as soon as StudentAI completes anyway.
-        return junk;
-    }
-    return map[x][y];
 }
 
 //Node and Edge class definitions.
