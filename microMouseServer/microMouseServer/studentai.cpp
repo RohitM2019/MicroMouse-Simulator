@@ -113,10 +113,6 @@ void microMouseServer::studentAI()
 
     if(state == FINDING_FINISH)
     {
-        destination.x = 7;
-        destination.y = 11;
-        state = EXPLORING;
-        /*
         static MazeMap map = MazeMap();
         static int counter = 0;
         map(x, y)++;
@@ -197,7 +193,6 @@ void microMouseServer::studentAI()
             destination.y = y;
             state = BACKTRACKING;
         }
-        */
     }
     else if(state == BACKTRACKING) //Pretty simple. Undo whatever the most recent action is and then pop that action. (unoptimal!)
     {
