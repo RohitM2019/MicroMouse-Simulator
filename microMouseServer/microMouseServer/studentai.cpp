@@ -158,15 +158,11 @@ void microMouseServer::studentAI()
         pastMoves.push_back(nextMove);
         if(nextMove == TURN_LEFT)
         {
-            if(counter < 0)
-                counter = 0;
             counter++;
             TurnLeft(this);
         }
         else if(nextMove == TURN_RIGHT)
         {
-            if(counter > 0)
-                counter = 0;
             counter--;
             TurnRight(this);
         }
@@ -178,13 +174,14 @@ void microMouseServer::studentAI()
         }
         else
         {
-            pastMoves.pop_back(); //If the next move is moving forward, pop the last logged item because we don't want to love moveForward twice.
+            pastMoves.pop_back(); //If the next move is moving forward, pop the last logged item because we don't want to log moveForward twice.
             counter = 0; //reset counter (moving forward breaks streak)
         }
 
         if(MoveForward(this)) //move forward and log
+        {
             pastMoves.push_back(MOVE_FORWARD);
-
+        }
 
         if(counter == 3 || counter == -3)
         {
@@ -211,7 +208,6 @@ void microMouseServer::studentAI()
         }
         else if(pastMoves.back() == MOVE_BACKWARD)
         {
-            MoveForward(this);
             TurnRight(this);
             TurnRight(this);
         }
@@ -262,7 +258,6 @@ void microMouseServer::studentAI()
             else
             {
                 foundFinish();
-                return;
             }
             firstExplorationRun = false;
             destination.exploredNorth = true;
@@ -270,6 +265,7 @@ void microMouseServer::studentAI()
             destination.exploredSouth = true;
             destination.exploredWest = true;
             nodes.push_back(&destination);
+            return;
         }
 
         int paths = 3; //Calculate how many paths possible
