@@ -197,6 +197,12 @@ void microMouseServer::studentAI()
     }
     else if(state == BACKTRACKING) //Pretty simple. Undo whatever the most recent action is and then pop that action. (unoptimal!)
     {
+        if(x == 0 && y == 0)
+        {
+            printUI("Finished backtracking! Exploring...");
+            TurnDir(this, 0);
+            state = EXPLORING;
+        }
         if(pastMoves.size() == 1)
         {
             printUI("Finished backtracking! Exploring...");
