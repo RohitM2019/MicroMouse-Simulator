@@ -158,11 +158,15 @@ void microMouseServer::studentAI()
         pastMoves.push_back(nextMove);
         if(nextMove == TURN_LEFT)
         {
+            if(counter < 0)
+                counter = 0;
             counter++;
             TurnLeft(this);
         }
         else if(nextMove == TURN_RIGHT)
         {
+            if(counter > 0)
+                counter = 0;
             counter--;
             TurnRight(this);
         }
