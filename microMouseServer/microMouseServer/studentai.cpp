@@ -33,7 +33,7 @@ public:
     bool exploredSouth = false;
     bool exploredWest = false;
     int distance = INT_MAX;
-    std::vector<Node*> path;
+    std::vector<int> path;
     std::vector<Edge*> edges;
 };
 
@@ -276,6 +276,7 @@ void microMouseServer::studentAI()
                             printUI("Exploration complete. Press \"start run\" again to run shortest path.");
                             state = COMPUTING_SHORTEST_PATH;
                         }
+                        TurnDir(this, 0);
                         foundFinish();
                         return;
                     }
@@ -326,7 +327,7 @@ void microMouseServer::studentAI()
                     {
                         edge->end->distance = edge->start->distance + edge->distance;
                         edge->end->path = currentNode->path;
-                        edge->end->path.push_back(currentNode);
+                        edge->end->path.push_back(edge->startDir);
                     }
                 }
                 else
@@ -335,7 +336,7 @@ void microMouseServer::studentAI()
                     {
                         edge->start->distance = edge->end->distance + edge->distance;
                         edge->start->path = currentNode->path;
-                        edge->start->path.push_back(currentNode);
+                        edge->start->path.push_back(edge->endDir);
                     }
                 }
             }
@@ -369,7 +370,65 @@ void microMouseServer::studentAI()
     }
     else if(state == RUNNING_SHORTEST_PATH)
     {
-        state = END;
+        static bool firstRun = true;
+        static Node * destination = NULL;
+        static int forkNum = 0;
+
+        if(firstRun)
+        {
+            for(Node * node: nodes)
+            {
+                if(node->x == finishX && node->y == finishY)
+                {
+                    destination = node;
+                    break;
+                }
+            }
+        }
+
+        int paths = 3; //Calculate how many paths possible
+        if(isWallForward())
+            paths--;
+        if(isWallLeft())
+            paths--;
+        if(isWallRight())
+            paths--;
+
+        if(paths < 2 && !(x == 0 && y == 0)) //Navigate by normal rules
+        {
+            if(!isWallLeft())
+            {
+                TurnLeft(this);
+                MoveForward(this);
+            }
+            else if(!isWallForward())
+            {
+                MoveForward(this);
+            }
+            else if(!isWallRight())
+            {
+                TurnRight(this);
+                MoveForward(this);
+            }
+            else
+            {
+                TurnRight(this);
+                TurnRight(this);
+                MoveForward(this);
+            }
+        }
+        else //If at a fork, figure out which way to go and go that way
+        {
+            TurnDir(this, destination->path.at(forkNum));
+            MoveForward(this);
+            forkNum++;
+        }
+
+        if(x == finishX && y == finishY)
+        {
+            printUI("Done.");
+            state = END;
+        }
     }
     else if(state == END)
     {
