@@ -11,7 +11,7 @@ SHORTEST PATH PLAN
 #include "string"
 
 //Enums! Enums galore!
-enum MouseState {EXPLORING, COMPUTING_SHORTEST_PATH, END};
+enum MouseState {EXPLORING, COMPUTING_SHORTEST_PATH, RUNNING_SHORTEST_PATH, END};
 enum MouseMovement {MOVE_FORWARD, TURN_LEFT, TURN_RIGHT, TURN_AROUND};
 enum Direction {NORTH, EAST, SOUTH, WEST};
 
@@ -32,6 +32,8 @@ public:
     bool exploredEast = false;
     bool exploredSouth = false;
     bool exploredWest = false;
+    int distance = INT_MAX;
+    std::vector<Node*> path;
     std::vector<Edge*> edges;
 };
 
@@ -125,6 +127,7 @@ void microMouseServer::studentAI()
         if(firstExplorationRun)
         {
             nodes.push_back(new Node(0,0));
+            nodes.front()->distance = 0;
             pathTrace.push_back(nodes.front());
             //It wouldn't make sense for the mouse to be able to go west or south from the starting corner
             nodes.front()->exploredWest = true;
@@ -306,6 +309,65 @@ void microMouseServer::studentAI()
         }
     }
     else if(state == COMPUTING_SHORTEST_PATH)
+    {
+        printUI("Calculating shortest path...");
+        //DIJKSTRAAAAAAAAAAAAAAAAA
+        Node * currentNode = nodes.at(0);
+        std::vector<Node*> unvisitedNodes = nodes;
+        std::vector<Node*> visitedNodes;
+
+        while(true)
+        {
+            for(Edge * edge: currentNode->edges) //Calculate and assign shortest distances/paths to neighboors of current node
+            {
+                if(currentNode == edge->start)
+                {
+                    if(edge->end->distance > currentNode->distance + edge->distance)
+                    {
+                        edge->end->distance = edge->start->distance + edge->distance;
+                        edge->end->path = currentNode->path;
+                        edge->end->path.push_back(currentNode);
+                    }
+                }
+                else
+                {
+                    if(edge->start->distance > currentNode->distance + edge->distance)
+                    {
+                        edge->start->distance = edge->end->distance + edge->distance;
+                        edge->start->path = currentNode->path;
+                        edge->start->path.push_back(currentNode);
+                    }
+                }
+            }
+
+            visitedNodes.push_back(currentNode); //Add current node to visited nodes and remove it from unvisited nodes.
+            for(auto iter = unvisitedNodes.begin(); iter != unvisitedNodes.end(); iter++)
+            {
+                if(*iter == currentNode)
+                {
+                    unvisitedNodes.erase(iter);
+                    break;
+                }
+            }
+
+            currentNode = unvisitedNodes.front(); //Select next current node
+            for(auto iter = unvisitedNodes.begin() + 1; iter != unvisitedNodes.end(); iter++)
+            {
+                if((*iter)->distance < currentNode->distance)
+                {
+                    currentNode = *iter;
+                }
+            }
+
+            if(currentNode->x == finishX && currentNode->y == finishY) //Find if destination shortest pathis calculated
+            {
+                break;
+            }
+        }
+        printUI("Shortest path calculated!");
+        state = RUNNING_SHORTEST_PATH;
+    }
+    else if(state == RUNNING_SHORTEST_PATH)
     {
         state = END;
     }
